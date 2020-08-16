@@ -128,11 +128,11 @@ ps -ef | grep server
 # root      6736     1  0 18:45 pts/0    00:00:00 ./tidb-server --store=tikv --path=127.0.0.1:2379 --log-file=tidb.log
 ```
 
-![image-20200816184955657](./img/image-20200816184955657.png)
+![image-20200816184955657.png](https://i.loli.net/2020/08/16/e5UGcRAfWCXO4zj.png)
 
-![image-20200816185157648](./img/image-20200816185157648.png)
+![image-20200816185157648.png](https://i.loli.net/2020/08/16/AaRCVPGtqkMOIpD.png)
 
-![image-20200816185405911](./img/image-20200816185405911.png)
+![image-20200816185405911.png](https://i.loli.net/2020/08/16/UtFyILHX4p17iR3.png)
 
 #### 改写源代码，事务启动时，打印日志
 
@@ -169,7 +169,7 @@ ps -ef | grep server
    }
    ```
 
-   ![image-20200816191007452](./img/image-20200816191007452.png)
+   ![image-20200816191007452.png](https://i.loli.net/2020/08/16/F5A6rZpg3mDcXt1.png)
 
 3. 修改2pc.go的execute实现，加上日志，写入数据，查看tidb的日志
 
@@ -190,8 +190,8 @@ ps -ef | grep server
 
    
 
-![image-20200816192740470](./img/image-20200816192740470.png)
+![image-20200816192740470.png](https://i.loli.net/2020/08/16/rd79Ka1x2eLio58.png)
 
-![image-20200816192824195](./img/image-20200816192824195.png)
+![image-20200816192824195.png](https://i.loli.net/2020/08/16/GkdB1txTscX4gyY.png)
 
 > 以上为，从源码编译部署tidb、tikv、pd，并通过修改源代码在事务开启时打印日志的过程，不确定事务开启是否在2pc.go，go以及tidb初学者，还请指正！
