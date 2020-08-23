@@ -245,3 +245,11 @@ cd go-tpcc/bin
 
 > 线程数增加到16后，tpmc有了将近1.5倍的提升
 
+```
+## threads=64
+./go-tpc tpcc -H 192.168.199.227 -P 4000 -D tpcc --warehouses 8 run --time=1m --threads=64
+```
+
+![image-20200823234753978.png](https://i.loli.net/2020/08/23/7VIi6n3km5QTEG4.png)
+
+> 线程数增加到64后，tpmc的提升不是很大
