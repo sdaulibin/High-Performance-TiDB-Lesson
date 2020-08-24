@@ -5,8 +5,15 @@
 > 由于机器资源限制，在个人笔记本进行测试，笔记本配置为MacBook Pro(2015,4c16g)下
 
 - 使用parallels新建了四个虚拟机，1台中控机器，3台目标机器，安装的操作系统版本都为centos7
-- 中控机器分配的资源为1c2g，最大64g的硬盘空间
-- 目标机器每台分配的资源为2c4g，最大64g的硬盘空间
+
+- 中控机器分配的资源为1c2g，最大64g的硬盘空间，ip为192.168.199.226
+
+- 目标机器每台分配的资源为2c4g，最大64g的硬盘空间，ip地址分别为192.168.199.227、192.168.199.228、192.168.199.229
+
+  | 192.168.199.227 | pd，tikv，tidb |
+  | --------------- | :------------- |
+  | 192.168.199.228 | pd，tikv       |
+  | 192.168.199.229 | pd，tikv       |
 
 ![image-20200823213419487](https://i.loli.net/2020/08/23/Pmngr9iDhJeA7Xo.png)
 
@@ -253,3 +260,133 @@ cd go-tpcc/bin
 ![image-20200823234753978.png](https://i.loli.net/2020/08/23/7VIi6n3km5QTEG4.png)
 
 > 线程数增加到64后，tpmc的提升不是很大
+
+#### 使用go-ycsb测试
+
+##### 安装go-ycsb
+
+```
+git clone https://github.com/pingcap/go-ycsb.git
+cd go-ycsb
+make
+```
+
+##### 准备数据
+
+```
+./bin/go-ycsb load mysql -P workloads/workloada -p recordcount=10000 -p mysql.host=192.168.199.227 -p mysql.port=4000 --threads 16
+```
+
+![image-20200824215231053.png](https://i.loli.net/2020/08/24/aNX9ld1BqmVFRsh.png)
+
+##### 测试数据
+
+```
+./bin/go-ycsb run mysql -P workloads/workloada -p operationcount=10000 -p mysql.host=192.168.199.227 -p mysql.port=4000 --threads 16
+```
+
+![image-20200824220003386.png](https://i.loli.net/2020/08/24/xYWGDanOZb5idwh.png)
+
+#### 调优测试
+
+##### 扩容tidb，使用haproxy负载
+
+###### 扩容tidb
+
+```
+vim scale.yaml
+## tidb_servers:
+##  - host: 192.168.199.228
+##  - host: 192.168.199.229
+!wq
+tiup cluster scale-out tidb-test scale.yaml
+```
+
+![image-20200824224618193.png](https://i.loli.net/2020/08/24/rgcEBnfX5vpTlDb.png)
+
+![image-20200824224647902.png](https://i.loli.net/2020/08/24/iKvD6Oc5UJpu2ZY.png)
+
+###### 安装配置haproxy
+
+```
+su - root
+yum install -y haproxy
+haproxy -v
+vim /etc/haproxy/haproxy.cfg
+## 数据库负载均衡
+## listen  proxy-mysql
+##    bind  0.0.0.0:3306
+##    mode  tcp
+##    balance  roundrobin
+##    option  tcplog
+##    server  MySQL_1 192.168.199.227:4000 maxconn 1000
+##    server  MySQL_2 192.168.199.228:4000 maxconn 1000
+##    server  MySQL_3 192.168.199.229:4000 maxconn 1000
+!wq
+## 配置rsyslog，用于记录haproxy日志
+cd /var/log
+mkdir haproxy 
+cd haproxy 
+touch haproxy.log
+chmod a+w haproxy.log
+vim /etc/rsyslog.cnf --修改rsyslog.cfg文件
+$ModLoad imudp  
+$UDPServerRun 514 ---将这两行前的#去掉。
+## 在local7.*  /var/log/boot.log之后添加如下内容
+# Save haproxy log  
+local2.*       /var/log/haproxy/haproxy.log
+vim /etc/sysconfig/rsyslog --修改rsylog文件
+SYSLOGD_OPTIONS=""  改为  SYSLOGD_OPTIONS="-r -m 2 -c 2" 
+## 重启rsyslog于haproxy
+systemctl restart rsyslog
+systemctl restart haproxy
+```
+
+![image-20200824231354615.png](https://i.loli.net/2020/08/24/3cghInF61WXGzAk.png)
+
+###### 使用go-tpc测试
+
+```
+## threads=4
+./go-tpc tpcc -H 192.168.199.226 -P 3306 -D tpcc --warehouses 8 run --time=1m --threads=4
+```
+
+![image-20200824232018042.png](https://i.loli.net/2020/08/24/twABkJGD3Knmf4H.png)
+
+```
+threads=64
+./go-tpc tpcc -H 192.168.199.226 -P 3306 -D tpcc --warehouses 8 run --time=1m --threads=64
+```
+
+![image-20200824232224016.png](https://i.loli.net/2020/08/24/Cd8wXihfK6BtLc9.png)
+
+> tidb三台负载后，tpmc有了提升，但是提升不大
+
+###### 使用sysbench测试
+
+- Point select测试
+
+```
+## threads=64
+sysbench --config-file=sysbench-ha.cfg oltp_point_select --threads=64 --tables=32 --table-size=10000 run
+```
+
+![image-20200824232642080.png](https://i.loli.net/2020/08/24/xNGpdVjOl4bHcfR.png)
+
+- Update index 测试
+
+```
+## threads=64
+sysbench --config-file=sysbench-ha.cfg oltp_update_index --threads=64 --tables=32 --table-size=10000 run
+```
+
+![image-20200824233051609.png](https://i.loli.net/2020/08/24/6TqlI7cNWtnmbpG.png)
+
+> tidb三台负载后，使用sysbench的读写测试都有了一定程度的提升，但是提升不明显
+
+> 时间原因，tidb、tikv参数的调优没有去做
+
+#### 总结
+
+1. 本次实验使用的最小拓扑结构，机器资源有限，数据集较小，使用多台tidb进行负载会提升一定的读写效率
+2. tidb、tikv、pd的相关参数不是很熟悉，个人认为在tidb内部影响性能的模块可能会是sql解析层以及与tikv交互的事务处理阶段
