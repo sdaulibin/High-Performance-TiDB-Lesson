@@ -85,29 +85,46 @@ go tool pprof -http=:8080 heap
 go tool pprof -http=:8080 mutex
 ```
 
-- 192.168.199.227 profile
+- 192.168.199.227 Profile Graph
 
 ![image-20200901112929026.png](https://i.loli.net/2020/09/01/JU6MNekaQFn9Hsv.png)
+
+192.168.199.227 Profile Flame Graph
+
+![image-20200901143624421.png](https://i.loli.net/2020/09/01/en814udypxw5Xsg.png)
 
 - 192.168.199.227 heap
 
 ![image-20200901113102712.png](https://i.loli.net/2020/09/01/P1rhDoBV9QOm47i.png)
 
-- 192.168.199.228 profile
+- 192.168.199.228 Profile Graph 
 
 ![image-20200901113247030](https://i.loli.net/2020/09/01/uYMnscNQ6eT9bHi.png)
+
+- 192.168.199.228 Profile Flame Graph
+
+![image-20200901143900081.png](https://i.loli.net/2020/09/01/YCtoKW4IPQrG2Ui.png)
 
 - 192.168.199.228 heap
 
   ![image-20200901113356567](https://i.loli.net/2020/09/01/ukPAbcgmFnZV1YS.png)
 
-- 192.168.199.229 profile
+- 192.168.199.229 Profile Graph
 
   ![image-20200901113558781](https://i.loli.net/2020/09/01/eIrd43MZ8BED9qc.png)
 
+- 192.168.199.229 Profile Flame Graph
+
+  ![image-20200901144027313.png](https://i.loli.net/2020/09/01/o2jEKftOD5AyTRw.png)
+  
 - 192.168.199.229 heap
 
   ![image-20200901113625080](https://i.loli.net/2020/09/01/yUXk5PlJ8stvEY6.png)
+
+##### 问题分析
+
+- 通过分析三台TiDB cpu的火焰图，发现server.(*Server).xxx的一系列方法耗时较长，这部分主要功能是解析执行sql
+- 通过分析三台TiDB heap的火焰图，发现tikv.(*copIteratorWorker).run.xxx的一系列方法占用heap较大
 
 #### Profile TiKV
 
@@ -118,7 +135,7 @@ go tool pprof -http=:8080 mutex
 ./go-tpc tpcc -H 192.168.199.226 -P 3306 -D tpcc --warehouses 8 run --time=1m --threads=16
 ```
 
-##### 使用dashboard生成svg文件
+##### 使用dashboard查看TiKV火焰图
 
 - 选中三个TiKV实例
 
@@ -127,3 +144,19 @@ go tool pprof -http=:8080 mutex
 - 分析完成
 
 ![image-20200831233945410.png](https://i.loli.net/2020/09/01/EVyjb2S9CcQLD7K.png)
+
+- TiKV 192.168.199.227 Profile Flame Graph
+
+![image-20200901221848014.png](https://i.loli.net/2020/09/01/fpKuq5B9FgAvYda.png)
+
+- TiKV 192.168.199.228 Profile Flame Graph
+
+  ![image-20200901222058713.png](https://i.loli.net/2020/09/01/MiOY8gByALWZKnU.png)
+
+- TiKV 192.168.199.229 Profile Flame Graph
+
+  ![image-20200901222209645.png](https://i.loli.net/2020/09/01/EdB5hv6IZCFWaxs.png)
+
+##### 问题分析
+
+- 通过分析三台TiKV cpu的火焰图，发现grpc-server、raftstore耗时较长
